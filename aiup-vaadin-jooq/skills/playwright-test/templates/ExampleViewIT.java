@@ -1,62 +1,64 @@
 package com.example.app.views;
 
-import com.microsoft.playwright.Locator;
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.vaadin.addons.dramafinder.AbstractBasePlaywrightIT;
+import org.vaadin.addons.dramafinder.element.button.ButtonElement;
+import org.vaadin.addons.dramafinder.element.grid.GridElement;
+import org.vaadin.addons.dramafinder.element.textfield.TextFieldElement;
 
-class ExampleViewIT extends PlaywrightIT {
+import static org.assertj.core.api.Assertions.assertThat;
 
-    @BeforeEach
-    void setup() {
-        // Navigate to the view under test
-        page.navigate("http://localhost:%d/example".formatted(localServerPort));
-        mopo.waitForConnectionToSettle();
+@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)
+class ExampleViewIT extends AbstractBasePlaywrightIT {
+
+    @LocalServerPort
+    private int port;
+
+    @Override
+    public String getUrl() {
+        return String.format("http://localhost:%d/", port);
+    }
+
+    @Override
+    public String getView() {
+        return "example";
     }
 
     @Test
     void grid_displays_data() {
-        GridPw gridPw = new GridPw(page);
+        GridElement grid = GridElement.get(page);
 
-        // Viewport may limit rendered rows
-        Assertions.assertThat(gridPw.getRenderedRowCount()).isGreaterThan(0);
+        // Viewport may limit rendered rows — use total count
+        assertThat(grid.getTotalRowCount()).isGreaterThan(0);
     }
 
     @Test
     void select_row_populates_form() {
-        GridPw gridPw = new GridPw(page);
-        GridPw.RowPw row = gridPw.getRow(0);
-        String expectedName = row.getCell(0).innerText();
+        GridElement grid = GridElement.get(page);
+        var cell = grid.findCell(0, "Name");
+        String expectedName = cell.get().getCellContentLocator().innerText();
 
-        row.select();
-        mopo.waitForConnectionToSettle();
+        grid.select(0);
 
-        Locator nameField = page.locator("vaadin-text-field")
-            .filter(new Locator.FilterOptions().setHasText("Name"))
-            .locator("input");
-
-        Assertions.assertThat(nameField.inputValue()).isEqualTo(expectedName);
+        TextFieldElement nameField = TextFieldElement.getByLabel(page, "Name");
+        nameField.assertValue(expectedName);
     }
 
     @Test
     void save_updates_grid() {
-        GridPw gridPw = new GridPw(page);
-        GridPw.RowPw row = gridPw.getRow(0);
-        row.select();
-        mopo.waitForConnectionToSettle();
+        GridElement grid = GridElement.get(page);
+        grid.select(0);
 
-        Locator nameField = page.locator("vaadin-text-field")
-            .filter(new Locator.FilterOptions().setHasText("Name"))
-            .locator("input");
-        nameField.fill("Updated Name");
+        TextFieldElement nameField = TextFieldElement.getByLabel(page, "Name");
+        nameField.setValue("Updated Name");
 
-        page.locator("vaadin-button")
-            .filter(new Locator.FilterOptions().setHasText("Save"))
-            .click();
-        mopo.waitForConnectionToSettle();
+        ButtonElement saveButton = ButtonElement.getByText(page, "Save");
+        saveButton.click();
 
-        GridPw.RowPw updatedRow = gridPw.getRow(0);
-        Assertions.assertThat(updatedRow.getCell(0).innerText()).isEqualTo("Updated Name");
+        var updatedCell = grid.findCell(0, "Name");
+        assertThat(updatedCell.get().getCellContentLocator()).hasText("Updated Name");
     }
 }
