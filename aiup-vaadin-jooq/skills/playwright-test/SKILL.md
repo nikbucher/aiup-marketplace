@@ -1,233 +1,313 @@
 ---
 name: playwright-test
 description: >
-  Creates Playwright browser-based integration tests for Vaadin views covering
-  navigation, form interactions, grid operations, and dialog handling. Use when
-  the user asks to "write Playwright tests", "create e2e tests", "write
-  integration tests", "test in the browser", or mentions end-to-end testing,
-  browser tests, UI integration tests, or Playwright for Vaadin.
+  Creates Playwright browser-based integration tests for Vaadin views using the
+  Drama Finder library for type-safe element wrappers with accessibility-first APIs.
+  Use when the user asks to "write Playwright tests", "create e2e tests", "write
+  integration tests", "test in the browser", "write IT tests", or mentions
+  end-to-end testing, browser tests, UI integration tests, Playwright for Vaadin,
+  or Drama Finder. Also trigger when the user references a use case (UC-*) and
+  asks for Playwright or E2E tests.
 ---
 
-# Playwright Test
+# Playwright Tests with Drama Finder
 
-## Instructions
+Create Playwright integration tests for the Vaadin view specified in $ARGUMENTS. Tests run in a real browser against a running application. Use the Drama Finder library for type-safe, accessibility-first element lookups — never raw Playwright locators.
 
-Create Playwright integration tests for Vaadin views on the use case $ARGUMENTS. Playwright tests run in a real browser against a running
-application. Tests use the Drama Finder library which provides type-safe Playwright element wrappers for Vaadin components.
+## Setup
+
+Tests extend `AbstractBasePlaywrightIT` from Drama Finder, which handles browser lifecycle, page creation, and Vaadin synchronization automatically.
+
+```xml
+<dependency>
+    <groupId>org.vaadin.addons</groupId>
+    <artifactId>dramafinder</artifactId>
+    <version>1.1.0</version>
+    <scope>test</scope>
+</dependency>
+```
 
 ## DO NOT
 
-- Use Mockito for mocking
-- Access services, repositories, or DSLContext directly
-- Delete all data in cleanup (only remove data created during the test)
-- Assume all grid rows are rendered (viewport limits visible rows)
-- Use raw Playwright locators like `page.locator("vaadin-text-field")` — use Drama Finder element wrappers instead
+- Use Mockito, access services/repositories/DSLContext directly
+- Use raw Playwright locators like `page.locator("vaadin-text-field")` — use Drama Finder element wrappers
 - Use `Thread.sleep()` or `page.waitForTimeout()` — Drama Finder assertions auto-retry
+- Delete all data in cleanup — only remove data created during the test
+- Assume all grid rows are rendered (viewport limits visible rows)
+- Use XPath selectors (they don't pierce shadow DOM — CSS does)
+- Use `getAttribute()`/`isVisible()` directly in assertions — they don't auto-retry
 
-## Test Data Strategy
+## Test Data
 
-Use existing test data from Flyway migrations in `src/test/resources/db/migration`.
-
-| Approach         | Location                               | Purpose                  |
-|------------------|----------------------------------------|--------------------------|
-| Flyway migration | src/test/resources/db/migration/V*.sql | Existing test data       |
-| Manual cleanup   | @AfterEach method                      | Remove test-created data |
-
-## Test Class Structure
-
-Extend `AbstractBasePlaywrightIT` directly. Annotate with `@SpringBootTest(webEnvironment = WebEnvironment.RANDOM_PORT)`, inject `@LocalServerPort`, and override `getUrl()` and `getView()`.
+Use existing test data from Flyway migrations in `src/test/resources/db/migration`. If your test creates data, clean up in `@AfterEach`.
 
 ## Template
 
-Use [templates/ExampleViewIT.java](templates/ExampleViewIT.java) as the test class structure.
+Use [templates/ExampleViewIT.java](templates/ExampleViewIT.java) as the starting point for new test classes.
 
-## Key Classes
+## Locating Components
 
-| Class                      | Purpose                                            |
-|----------------------------|----------------------------------------------------|
-| AbstractBasePlaywrightIT   | Base class: browser lifecycle, page, Vaadin waits  |
-| GridElement                | Grid interactions: rows, cells, selection, scroll   |
-| TextFieldElement           | Text field: setValue, getValue, validation          |
-| ButtonElement              | Button: click, enabled/disabled state              |
-| ComboBoxElement            | ComboBox: selectItem, filterAndSelectItem           |
-| DialogElement              | Dialog: open/close state, header/content/footer     |
-| CheckboxElement            | Checkbox: checked/unchecked/indeterminate state     |
-| DatePickerElement          | Date picker: date value, validation                 |
-| NotificationElement        | Notification: message text, theme                   |
-| page                       | Playwright Page object for navigation               |
+Drama Finder uses ARIA roles and accessible names — not CSS selectors. This makes tests resilient to DOM changes and enforces accessibility.
 
-## Common Patterns
-
-### Navigate to View
-
-Override `getView()` in the test class to set the route:
+### By Label (input fields, pickers)
 
 ```java
-@Override
-public String getView() {
-    return "persons";
-}
-```
-
-The base class automatically navigates to this view and waits for Vaadin to be ready before each test.
-
-### Drama Finder
-
-Find information about the Drama Finder library:
-https://parttio-dramafinder-4.mintlify.app
-
-Drama Finder API:
-https://parttio-dramafinder-4.mintlify.app/api/
-
-### Locate Vaadin Components
-
-Drama Finder uses ARIA roles and accessible names to find elements — not CSS selectors:
-
-```java
-// Text field by label
-TextFieldElement nameField = TextFieldElement.getByLabel(page, "Name");
-
-// Button by text
-ButtonElement saveButton = ButtonElement.getByText(page, "Save");
-
-// ComboBox by label
-ComboBoxElement countryCombo = ComboBoxElement.getByLabel(page, "Country");
-
-// Checkbox by label
-CheckboxElement activeCheckbox = CheckboxElement.getByLabel(page, "Active");
-
-// Date picker by label
+TextFieldElement nameField = TextFieldElement.getByLabel(page, "Full Name");
 DatePickerElement birthDate = DatePickerElement.getByLabel(page, "Birth Date");
+ComboBoxElement country = ComboBoxElement.getByLabel(page, "Country");
+CheckboxElement active = CheckboxElement.getByLabel(page, "Active");
 ```
 
-### Scoped Lookups
-
-Find elements within a specific container to avoid ambiguity:
+### By Text (buttons, tabs)
 
 ```java
-// Within a dialog
-DialogElement dialog = DialogElement.getByHeaderText(page, "Edit Person");
-TextFieldElement nameField = TextFieldElement.getByLabel(dialog.getLocator(), "Name");
-ButtonElement saveButton = ButtonElement.getByText(dialog.getLocator(), "Save");
+ButtonElement save = ButtonElement.getByText(page, "Save");
 ```
 
-### Grid Operations
+### By ID (grids, specific components)
+
+```java
+GridElement grid = GridElement.getById(page, "customer-grid");
+```
+
+### First on Page
+
+```java
+GridElement grid = GridElement.get(page);
+DialogElement dialog = new DialogElement(page);
+NotificationElement notif = new NotificationElement(page);
+```
+
+### By Header Text (dialogs)
+
+```java
+DialogElement dialog = DialogElement.getByHeaderText(page, "Confirm Delete");
+```
+
+### Scoped Lookups (within containers)
+
+When multiple elements share the same label, scope the lookup to a container:
+
+```java
+DialogElement dialog = DialogElement.getByHeaderText(page, "Edit Person");
+TextFieldElement name = TextFieldElement.getByLabel(dialog.getLocator(), "Name");
+ButtonElement confirm = ButtonElement.getByText(dialog.getLocator(), "Confirm");
+```
+
+### ARIA Role Mapping
+
+| Role       | Element Classes                                                                  |
+|------------|----------------------------------------------------------------------------------|
+| TEXTBOX    | TextFieldElement, EmailFieldElement, PasswordFieldElement, TextAreaElement        |
+| SPINBUTTON | IntegerFieldElement, BigDecimalFieldElement, NumberFieldElement                   |
+| COMBOBOX   | ComboBoxElement, DatePickerElement, TimePickerElement, DateTimePickerElement      |
+| BUTTON     | ButtonElement                                                                    |
+| CHECKBOX   | CheckboxElement                                                                  |
+| RADIO      | RadioButtonElement                                                               |
+| DIALOG     | DialogElement                                                                    |
+| GRID       | GridElement                                                                      |
+
+For icon-only buttons, set `setAriaLabel("Close")` on the server side, then find with `ButtonElement.getByText(page, "Close")`.
+
+## Element APIs
+
+### TextFieldElement
+
+```java
+TextFieldElement tf = TextFieldElement.getByLabel(page, "Username");
+tf.setValue("john.doe");
+tf.clear();
+tf.getValue();
+tf.assertValue("john.doe");
+tf.assertVisible();
+tf.assertEnabled();
+tf.assertValid();
+tf.assertInvalid();
+tf.assertRequired();
+tf.assertErrorMessage("Field is required");
+tf.assertPattern("\\d{7}");
+tf.assertMinLength(6);
+tf.assertMaxLength(7);
+tf.assertHelperHasText("Enter 7 digits");
+```
+
+Sub-locators: `getInputLocator()`, `getHelperLocator()`, `getErrorMessageLocator()`, `getPrefixLocator()`, `getSuffixLocator()`
+
+### ButtonElement
+
+```java
+ButtonElement btn = ButtonElement.getByText(page, "Save");
+btn.click();
+btn.assertEnabled();
+btn.assertDisabled();
+btn.assertVisible();
+btn.assertTheme("primary");
+btn.assertCssClass("custom-btn");
+btn.focus();
+btn.assertIsFocused();
+```
+
+### GridElement
 
 ```java
 GridElement grid = GridElement.get(page);
 
-// Total row count (all data, not just rendered)
-int total = grid.getTotalRowCount();
+// Row counts
+int total = grid.getTotalRowCount();        // all rows (including non-rendered)
+int visible = grid.getRenderedRowCount();   // only rendered in viewport
 
-// Find cell by row index and column header text
-var cell = grid.findCell(0, "Name");
+// Headers
+List<String> headers = grid.getHeaderCellContents();
 
-// Select a row
-grid.select(0);
+// Cell access
+var cell = grid.findCell(0, 0);             // by row/column index
+var cell = grid.findCell(0, "Email");       // by row index + column header
 
-// Get row and check selection
+// Row operations
 var row = grid.findRow(0);
-row.get().isSelected();
+grid.select(0);
+grid.deselect(0);
 
-// Scroll to distant row
-grid.scrollToRow(50);
+// Lazy loading — scrolls automatically to the row
+var distantRow = grid.findRow(9000);
 
-// Sort by clicking header
+// Sorting
 var header = grid.findHeaderCellByText("Name");
 header.get().clickSort();
 
-// Wait for grid to finish loading
+// Scrolling
+grid.scrollToRow(500);
+grid.scrollToStart();
+grid.scrollToEnd();
+
+// Wait for async data
 grid.waitForGridToStopLoading();
+
+// Select all
+grid.checkSelectAll();
+grid.getSelectedItemCount();
 ```
 
-### Form Interactions
+### ComboBoxElement
 
 ```java
-// Set value
-TextFieldElement nameField = TextFieldElement.getByLabel(page, "Name");
-nameField.setValue("John Doe");
-
-// Read value
-String value = nameField.getValue();
-
-// Clear and set new value
-nameField.clear();
-nameField.setValue("Jane Doe");
-
-// Click button
-ButtonElement saveButton = ButtonElement.getByText(page, "Save");
-saveButton.click();
+ComboBoxElement cb = ComboBoxElement.getByLabel(page, "Country");
+cb.selectItem("Germany");
+cb.filterAndSelectItem("Ger", "Germany");  // for lazy-loading
+cb.setFilter("search text");
+cb.open();
+cb.close();
+cb.getValue();
+cb.assertValue("Germany");
+cb.assertOpened();
+cb.assertClosed();
+cb.assertItemCount(5);
+cb.assertReadOnly();
 ```
 
-### ComboBox Interactions
+### DatePickerElement
 
 ```java
-ComboBoxElement countryCombo = ComboBoxElement.getByLabel(page, "Country");
-
-// Select item
-countryCombo.selectItem("Finland");
-
-// Filter and select (for lazy-loading combo boxes)
-countryCombo.filterAndSelectItem("Fin");
+DatePickerElement dp = DatePickerElement.getByLabel(page, "Birth Date");
+dp.setValue(LocalDate.of(1990, 1, 15));
+dp.setValue("15/01/1990");                 // string format
+dp.getValueAsLocalDate();
+dp.assertValue(LocalDate.of(1990, 1, 15));
 ```
 
-### Dialog Interactions
+### CheckboxElement
 
 ```java
-// Find dialog by header text
+CheckboxElement cb = CheckboxElement.getByLabel(page, "Accept Terms");
+cb.check();
+cb.uncheck();
+cb.assertChecked();
+cb.assertNotChecked();
+cb.isIndeterminate();
+cb.assertIndeterminate();
+```
+
+### DialogElement
+
+```java
 DialogElement dialog = DialogElement.getByHeaderText(page, "Confirm Delete");
-
-// Assert dialog is open
 dialog.assertOpen();
-
-// Interact with elements inside the dialog
-ButtonElement confirmButton = ButtonElement.getByText(dialog.getLocator(), "Confirm");
-confirmButton.click();
-
-// Assert dialog closed
 dialog.assertClosed();
+dialog.getHeaderLocator();
+dialog.getContentLocator();
+dialog.getFooterLocator();
+```
+
+### NotificationElement
+
+```java
+NotificationElement notif = new NotificationElement(page);
+notif.assertOpen();
+notif.assertClosed();
+notif.getContentLocator();
+```
+
+### AccordionElement
+
+```java
+AccordionElement acc = new AccordionElement(locator);
+acc.openPanel("Details");
+acc.closePanel("Details");
+acc.assertPanelOpened("Details");
+acc.assertPanelClosed("Details");
+acc.assertPanelCount(3);
 ```
 
 ## Assertions Reference
 
-Drama Finder assertions auto-retry until the condition is met or timeout (no manual waits needed):
+All `assert*()` methods auto-retry until the condition is met or timeout (default 5 seconds). This eliminates the need for manual waits.
 
-| Assertion Type     | Example                                               |
-|--------------------|-------------------------------------------------------|
-| Value              | `nameField.assertValue("John Doe")`                  |
-| Visibility         | `saveButton.assertVisible()`                          |
-| Enabled/Disabled   | `saveButton.assertEnabled()`                          |
-| Valid/Invalid      | `nameField.assertValid()`                             |
-| Error message      | `nameField.assertErrorMessage("Required")`            |
-| Checked            | `checkbox.assertChecked()`                            |
-| Dialog open/closed | `dialog.assertOpen()`                                 |
-| Grid row count     | `assertThat(grid.getTotalRowCount()).isGreaterThan(0)` |
-| Grid cell text     | `assertThat(cell.get().getCellContentLocator()).hasText("x")` |
+| Category          | Methods                                                          |
+|-------------------|------------------------------------------------------------------|
+| Visibility        | `assertVisible()`, `assertHidden()`                              |
+| State             | `assertEnabled()`, `assertDisabled()`                            |
+| Focus             | `assertIsFocused()`, `assertIsNotFocused()`                      |
+| Value             | `assertValue("...")` (text fields, combo boxes, date pickers)    |
+| Validation        | `assertValid()`, `assertInvalid()`, `assertRequired()`          |
+| Error message     | `assertErrorMessage("...")`, `getErrorMessageLocator()`          |
+| Checked           | `assertChecked()`, `assertNotChecked()`, `assertIndeterminate()` |
+| Dialog            | `assertOpen()`, `assertClosed()`                                 |
+| ARIA              | `assertAriaLabel("...")`                                         |
+| Styling           | `assertTheme("...")`, `assertCssClass("...")`                    |
+| Tooltip           | `assertTooltipHasText("...")`                                    |
+| Prefix/Suffix     | `assertPrefixHasText("...")`, `assertSuffixHasText("...")`       |
+| Grid row count    | `assertThat(grid.getTotalRowCount()).isGreaterThan(0)`           |
+| Grid cell content | `assertThat(cell.get().getCellContentLocator()).hasText("...")`  |
 
-## Viewport Considerations
+## Locator Types
 
-Playwright tests run in a real browser with viewport constraints:
+Each element has two locator levels — use the right one:
 
-- Not all grid rows may be rendered (virtualization)
-- Use `getTotalRowCount()` for the actual count, `getRenderedRowCount()` for visible rows
-- Use `grid.scrollToRow(index)` to bring off-screen rows into view
-- Use `isGreaterThan()` instead of exact counts when appropriate
+- **`getLocator()`** — the component root. Use for: `theme`, `class`, `opened`, `invalid` attributes
+- **`getInputLocator()`** — the internal input element. Use for: `value`, `maxlength`, `pattern`, `placeholder`, focus, disabled
+
+CSS selectors pierce shadow DOM automatically. XPath does NOT.
+
+**Part selectors** for internal elements: `input`, `clear-button`, `toggle-button`, `prefix`, `suffix`
 
 ## Workflow
 
 1. Read the use case specification
-2. Use TodoWrite to create a task for each test scenario
+2. Plan test scenarios (group related tests in `@Nested` classes with `@DisplayName`)
 3. Create test class extending `AbstractBasePlaywrightIT` with `@SpringBootTest` and `@LocalServerPort`
-4. For each test:
-    - Override `getView()` for navigation (base class handles page load and Vaadin readiness)
-    - Use Drama Finder element wrappers to locate components by label/text
-    - Perform interactions (setValue, click, selectItem)
-    - Assert expected outcomes using auto-retry assertions
-    - Clean up test data if created during test
-5. Run tests to verify they pass
-6. If a test fails:
-    - Verify the view loaded correctly
-    - Check that test data exists in the Flyway test migrations
-    - For grid assertions, use `isGreaterThan()` instead of exact counts
-    - Use `grid.waitForGridToStopLoading()` for grids with async data
-7. Mark todos complete
+4. Override `getUrl()` (return `http://localhost:<port>/`) and `getView()` (return the route)
+5. For each test:
+   - Use Drama Finder element wrappers to locate components by label/text/ID
+   - Perform interactions (setValue, click, selectItem, check)
+   - Assert outcomes using auto-retry assertions
+   - Clean up test-created data in `@AfterEach`
+6. Run tests with `./mvnw verify -Pit` to verify
+7. On failure: check view loaded, verify test data in Flyway migrations, use `isGreaterThan()` for grid counts, add `waitForGridToStopLoading()` for async grids
+
+## Troubleshooting
+
+- **Element not found**: Check exact label text matches, ensure element is rendered, try scoped lookup
+- **Multiple elements matched**: Factory methods use `.first()` automatically; scope to container for precision
+- **Wrong locator type**: Use `getInputLocator()` for value/focus, `getLocator()` for component attributes
+- **Flaky tests**: Replace any boolean checks with auto-retry assertions
+- **Visual debugging**: `./mvnw verify -Pit -Dheadless=false -Dit.test=YourTestIT`
