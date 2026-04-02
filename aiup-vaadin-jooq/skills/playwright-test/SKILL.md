@@ -26,6 +26,8 @@ Tests extend `AbstractBasePlaywrightIT` from Drama Finder, which handles browser
     <scope>test</scope>
 </dependency>
 ```
+## Important
+- Do Blackbox Tests: Generate the tests against the running application (usually http://localhost:8080) and don't consider the implementation.
 
 ## DO NOT
 
