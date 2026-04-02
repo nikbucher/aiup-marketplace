@@ -49,7 +49,8 @@ Use [templates/ExampleViewIT.java](templates/ExampleViewIT.java) as the starting
 
 ## Locating Components
 
-Drama Finder uses ARIA roles and accessible names — not CSS selectors. This makes tests resilient to DOM changes and enforces accessibility.
+Drama Finder uses ARIA roles and accessible names — not CSS selectors. This makes tests resilient to DOM changes and enforces accessibility. 
+API documentation of Drama Finder: [https://parttio-dramafinder-4.mintlify.app/api/vaadin-element](https://parttio-dramafinder-4.mintlify.app/api/vaadin-element)
 
 ### By Label (input fields, pickers)
 
