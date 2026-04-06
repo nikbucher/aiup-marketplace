@@ -38,6 +38,7 @@ Tests extend `AbstractBasePlaywrightIT` from Drama Finder, which handles browser
 - Assume all grid rows are rendered (viewport limits visible rows)
 - Use XPath selectors (they don't pierce shadow DOM — CSS does)
 - Use `getAttribute()`/`isVisible()` directly in assertions — they don't auto-retry
+- Guess Drama Finder method signatures — always look them up via the JavaDocs MCP
 
 ## Test Data
 
@@ -97,215 +98,63 @@ TextFieldElement name = TextFieldElement.getByLabel(dialog.getLocator(), "Name")
 ButtonElement confirm = ButtonElement.getByText(dialog.getLocator(), "Confirm");
 ```
 
-### ARIA Role Mapping
-
-| Role       | Element Classes                                                                  |
-|------------|----------------------------------------------------------------------------------|
-| TEXTBOX    | TextFieldElement, EmailFieldElement, PasswordFieldElement, TextAreaElement        |
-| SPINBUTTON | IntegerFieldElement, BigDecimalFieldElement, NumberFieldElement                   |
-| COMBOBOX   | ComboBoxElement, DatePickerElement, TimePickerElement, DateTimePickerElement      |
-| BUTTON     | ButtonElement                                                                    |
-| CHECKBOX   | CheckboxElement                                                                  |
-| RADIO      | RadioButtonElement                                                               |
-| DIALOG     | DialogElement                                                                    |
-| GRID       | GridElement                                                                      |
-
 For icon-only buttons, set `setAriaLabel("Close")` on the server side, then find with `ButtonElement.getByText(page, "Close")`.
 
-## Element APIs
+## Drama Finder API Lookup
 
-### TextFieldElement
+Use the **JavaDocs MCP server** to look up Drama Finder element classes, methods, and assertions. Do NOT guess method signatures — always verify with the JavaDocs.
 
-```java
-TextFieldElement tf = TextFieldElement.getByLabel(page, "Username");
-tf.setValue("john.doe");
-tf.clear();
-tf.getValue();
-tf.assertValue("john.doe");
-tf.assertVisible();
-tf.assertEnabled();
-tf.assertValid();
-tf.assertInvalid();
-tf.assertRequired();
-tf.assertErrorMessage("Field is required");
-tf.assertPattern("\\d{7}");
-tf.assertMinLength(6);
-tf.assertMaxLength(7);
-tf.assertHelperHasText("Enter 7 digits");
-```
+**Maven coordinates:** groupId=`org.vaadin.addons`, artifactId=`dramafinder`, version=`1.1.0`
 
-Sub-locators: `getInputLocator()`, `getHelperLocator()`, `getErrorMessageLocator()`, `getPrefixLocator()`, `getSuffixLocator()`
+### Step 1: List available element classes
 
-### ButtonElement
+Call `get_javadoc_content_list` with the coordinates above to see all available element and base classes.
 
-```java
-ButtonElement btn = ButtonElement.getByText(page, "Save");
-btn.click();
-btn.assertEnabled();
-btn.assertDisabled();
-btn.assertVisible();
-btn.assertTheme("primary");
-btn.assertCssClass("custom-btn");
-btn.focus();
-btn.assertIsFocused();
-```
+### Step 2: Look up specific element APIs
 
-### GridElement
+Call `get_javadoc_symbol_contents` with the `link` value from step 1 to get the full API for any element class (methods, parameters, return types, inherited methods).
 
-```java
-GridElement grid = GridElement.get(page);
+### Step 3: Check base classes for shared methods
 
-// Row counts
-int total = grid.getTotalRowCount();        // all rows (including non-rendered)
-int visible = grid.getRenderedRowCount();   // only rendered in viewport
+Many assertions and behaviors are defined in base/shared classes. Look these up when you need shared functionality:
 
-// Headers
-List<String> headers = grid.getHeaderCellContents();
+- `PlaywrightElement` — core locator methods
+- `HasValidationPropertiesElement` — `assertValid()`, `assertInvalid()`, `assertErrorMessage()`
+- `HasValueElement` — `setValue()`, `getValue()`, `assertValue()`
+- `HasEnabledElement` — `assertEnabled()`, `assertDisabled()`
+- `FocusableElement` — `focus()`, `assertIsFocused()`
+- `HasThemeElement` — `assertTheme()`
+- `HasTooltipElement` — `assertTooltipHasText()`
 
-// Cell access
-var cell = grid.findCell(0, 0);             // by row/column index
-var cell = grid.findCell(0, "Email");       // by row index + column header
+### Locator levels
 
-// Row operations
-var row = grid.findRow(0);
-grid.select(0);
-grid.deselect(0);
-
-// Lazy loading — scrolls automatically to the row
-var distantRow = grid.findRow(9000);
-
-// Sorting
-var header = grid.findHeaderCellByText("Name");
-header.get().clickSort();
-
-// Scrolling
-grid.scrollToRow(500);
-grid.scrollToStart();
-grid.scrollToEnd();
-
-// Wait for async data
-grid.waitForGridToStopLoading();
-
-// Select all
-grid.checkSelectAll();
-grid.getSelectedItemCount();
-```
-
-### ComboBoxElement
-
-```java
-ComboBoxElement cb = ComboBoxElement.getByLabel(page, "Country");
-cb.selectItem("Germany");
-cb.filterAndSelectItem("Ger", "Germany");  // for lazy-loading
-cb.setFilter("search text");
-cb.open();
-cb.close();
-cb.getValue();
-cb.assertValue("Germany");
-cb.assertOpened();
-cb.assertClosed();
-cb.assertItemCount(5);
-cb.assertReadOnly();
-```
-
-### DatePickerElement
-
-```java
-DatePickerElement dp = DatePickerElement.getByLabel(page, "Birth Date");
-dp.setValue(LocalDate.of(1990, 1, 15));
-dp.setValue("15/01/1990");                 // string format
-dp.getValueAsLocalDate();
-dp.assertValue(LocalDate.of(1990, 1, 15));
-```
-
-### CheckboxElement
-
-```java
-CheckboxElement cb = CheckboxElement.getByLabel(page, "Accept Terms");
-cb.check();
-cb.uncheck();
-cb.assertChecked();
-cb.assertNotChecked();
-cb.isIndeterminate();
-cb.assertIndeterminate();
-```
-
-### DialogElement
-
-```java
-DialogElement dialog = DialogElement.getByHeaderText(page, "Confirm Delete");
-dialog.assertOpen();
-dialog.assertClosed();
-dialog.getHeaderLocator();
-dialog.getContentLocator();
-dialog.getFooterLocator();
-```
-
-### NotificationElement
-
-```java
-NotificationElement notif = new NotificationElement(page);
-notif.assertOpen();
-notif.assertClosed();
-notif.getContentLocator();
-```
-
-### AccordionElement
-
-```java
-AccordionElement acc = new AccordionElement(locator);
-acc.openPanel("Details");
-acc.closePanel("Details");
-acc.assertPanelOpened("Details");
-acc.assertPanelClosed("Details");
-acc.assertPanelCount(3);
-```
-
-## Assertions Reference
-
-All `assert*()` methods auto-retry until the condition is met or timeout (default 5 seconds). This eliminates the need for manual waits.
-
-| Category          | Methods                                                          |
-|-------------------|------------------------------------------------------------------|
-| Visibility        | `assertVisible()`, `assertHidden()`                              |
-| State             | `assertEnabled()`, `assertDisabled()`                            |
-| Focus             | `assertIsFocused()`, `assertIsNotFocused()`                      |
-| Value             | `assertValue("...")` (text fields, combo boxes, date pickers)    |
-| Validation        | `assertValid()`, `assertInvalid()`, `assertRequired()`          |
-| Error message     | `assertErrorMessage("...")`, `getErrorMessageLocator()`          |
-| Checked           | `assertChecked()`, `assertNotChecked()`, `assertIndeterminate()` |
-| Dialog            | `assertOpen()`, `assertClosed()`                                 |
-| ARIA              | `assertAriaLabel("...")`                                         |
-| Styling           | `assertTheme("...")`, `assertCssClass("...")`                    |
-| Tooltip           | `assertTooltipHasText("...")`                                    |
-| Prefix/Suffix     | `assertPrefixHasText("...")`, `assertSuffixHasText("...")`       |
-| Grid row count    | `assertThat(grid.getTotalRowCount()).isGreaterThan(0)`           |
-| Grid cell content | `assertThat(cell.get().getCellContentLocator()).hasText("...")`  |
-
-## Locator Types
-
-Each element has two locator levels — use the right one:
+Each element has two locator levels:
 
 - **`getLocator()`** — the component root. Use for: `theme`, `class`, `opened`, `invalid` attributes
 - **`getInputLocator()`** — the internal input element. Use for: `value`, `maxlength`, `pattern`, `placeholder`, focus, disabled
 
 CSS selectors pierce shadow DOM automatically. XPath does NOT.
 
-**Part selectors** for internal elements: `input`, `clear-button`, `toggle-button`, `prefix`, `suffix`
+### When to look up
+
+- **Before writing any test**: look up the element classes you plan to use
+- **When unsure about a method**: check the specific element class JavaDoc
+- **When you need an element for an unfamiliar Vaadin component**: list contents to find the matching element class
 
 ## Workflow
 
 1. Read the use case specification
 2. Plan test scenarios (group related tests in `@Nested` classes with `@DisplayName`)
-3. Create test class extending `AbstractBasePlaywrightIT` with `@SpringBootTest` and `@LocalServerPort`
-4. Override `getUrl()` (return `http://localhost:<port>/`) and `getView()` (return the route)
-5. For each test:
+3. **Look up Drama Finder element APIs** via the JavaDocs MCP for each element class you will use
+4. Create test class extending `AbstractBasePlaywrightIT` with `@SpringBootTest` and `@LocalServerPort`
+5. Override `getUrl()` (return `http://localhost:<port>/`) and `getView()` (return the route)
+6. For each test:
    - Use Drama Finder element wrappers to locate components by label/text/ID
    - Perform interactions (setValue, click, selectItem, check)
    - Assert outcomes using auto-retry assertions
    - Clean up test-created data in `@AfterEach`
-6. Run tests with `./mvnw verify -Pit` to verify
-7. On failure: check view loaded, verify test data in Flyway migrations, use `isGreaterThan()` for grid counts, add `waitForGridToStopLoading()` for async grids
+7. Run tests with `./mvnw verify -Pit` to verify
+8. On failure: check view loaded, verify test data in Flyway migrations, use `isGreaterThan()` for grid counts, add `waitForGridToStopLoading()` for async grids
 
 ## Troubleshooting
 
